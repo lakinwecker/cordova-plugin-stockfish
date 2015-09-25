@@ -1,0 +1,9 @@
+CMakeFiles
+CMakeCache.txt
+cmake_install.cmake
+lib/stockfish
+*.a
+main
+MakeFile
+android/libs
+android/obj
