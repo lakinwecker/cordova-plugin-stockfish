@@ -9,6 +9,7 @@
   <js-module src="www/CordovaPluginStockfish.js" name="CordovaPluginStockfish">
     <clobbers target="Stockfish" />
   </js-module>
+
   <platform name="android">
     <source-file src="src/android/jni" target-dir="." />
     <source-file src="src/android/org.lichess.stockfish/CordovaPluginStockfish.java" target-dir="src/org/lichess/stockfish" />
@@ -17,5 +18,54 @@
         <param name="android-package" value="org.lichess.stockfish.CordovaPluginStockfish" />
       </feature>
     </config-file>
+  </platform>
+
+  <platform name="ios">
+    <config-file target="config.xml" parent="/*">
+      <feature name="CordovaPluginStockfish">
+        <param name="ios-package" value="CordovaPluginStockfish" />
+        <param name="onload" value="true" />
+      </feature>
+    </config-file>
+    <header-file src="src/ios/CordovaPluginStockfish.h" />
+    <header-file src="src/ios/CordovaPluginStockfishc.h" />
+    <source-file src="src/ios/CordovaPluginStockfish.mm" />
+    <header-file src="src/ios/stockfishios/stockfishcli.h" />
+    <header-file src="src/ios/stockfishios/stockfishios.h" />
+    <header-file src="src/ios/stockfishios/threadbuf.h" />
+    <source-file src="src/ios/stockfishios/stockfish/benchmark.cpp" />
+    <source-file src="src/ios/stockfishios/stockfish/bitbase.cpp" />
+    <source-file src="src/ios/stockfishios/stockfish/bitboard.cpp" />
+    <header-file src="src/ios/stockfishios/stockfish/bitboard.h" />
+    <header-file src="src/ios/stockfishios/stockfish/bitcount.h" />
+    <source-file src="src/ios/stockfishios/stockfish/endgame.cpp" />
+    <header-file src="src/ios/stockfishios/stockfish/endgame.h" />
+    <source-file src="src/ios/stockfishios/stockfish/evaluate.cpp" />
+    <header-file src="src/ios/stockfishios/stockfish/evaluate.h" />
+    <source-file src="src/ios/stockfishios/stockfish/material.cpp" />
+    <header-file src="src/ios/stockfishios/stockfish/material.h" />
+    <source-file src="src/ios/stockfishios/stockfish/misc.cpp" />
+    <header-file src="src/ios/stockfishios/stockfish/misc.h" />
+    <source-file src="src/ios/stockfishios/stockfish/movegen.cpp" />
+    <header-file src="src/ios/stockfishios/stockfish/movegen.h" />
+    <source-file src="src/ios/stockfishios/stockfish/movepick.cpp" />
+    <header-file src="src/ios/stockfishios/stockfish/movepick.h" />
+    <source-file src="src/ios/stockfishios/stockfish/pawns.cpp" />
+    <header-file src="src/ios/stockfishios/stockfish/pawns.h" />
+    <source-file src="src/ios/stockfishios/stockfish/position.cpp" />
+    <header-file src="src/ios/stockfishios/stockfish/position.h" />
+    <source-file src="src/ios/stockfishios/stockfish/psqt.cpp" />
+    <source-file src="src/ios/stockfishios/stockfish/search.cpp" />
+    <header-file src="src/ios/stockfishios/stockfish/search.h" />
+    <source-file src="src/ios/stockfishios/stockfish/thread.cpp" />
+    <source-file src="src/ios/stockfishios/stockfish/timeman.cpp" />
+    <header-file src="src/ios/stockfishios/stockfish/timeman.h" />
+    <source-file src="src/ios/stockfishios/stockfish/tt.cpp" />
+    <header-file src="src/ios/stockfishios/stockfish/tt.h" />
+    <header-file src="src/ios/stockfishios/stockfish/uci.h" />
+    <source-file src="src/ios/stockfishios/stockfish/ucioption.cpp" />
+    <header-file src="src/ios/stockfishios/stockfish/types.h" />
+    <source-file src="src/ios/stockfishios/stockfish/syzygy/tbprobe.cpp" />
+    <header-file src="src/ios/stockfishios/stockfish/syzygy/tbprobe.h" />
   </platform>
 </plugin>
