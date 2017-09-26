@@ -6,16 +6,39 @@
 
 NSString *outputCallback;
 NSNumber *isInit = @FALSE;
+NSTimer *onPauseTimer = nil;
+
+- (void)pluginInitialize
+{
+  [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(onPause) name:UIApplicationDidEnterBackgroundNotification object:nil];
+  [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(onResume) name:UIApplicationWillEnterForegroundNotification object:nil];
+}
+
+- (void)onPause
+{
+  onPauseTimer = [NSTimer scheduledTimerWithTimeInterval: 1.0 * 60 * 10
+    target: self
+    selector:@selector(doStopOnPause)
+    userInfo: nil repeats:NO];
+}
+
+- (void)onResume
+{
+  if(onPauseTimer) {
+    [onPauseTimer invalidate];
+    onPauseTimer = nil;
+  }
+}
 
 - (void)init:(CDVInvokedUrlCommand*)command
 {
   [self.commandDelegate runInBackground:^{
-      if(![isInit boolValue]) {
-        stockfishios::init((__bridge void*)self);
-        isInit = @TRUE;
-      }
-      CDVPluginResult* pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
-      [self.commandDelegate sendPluginResult:pluginResult callbackId:command.callbackId];
+    if(![isInit boolValue]) {
+      stockfishios::init((__bridge void*)self);
+      isInit = @TRUE;
+    }
+    CDVPluginResult* pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
+    [self.commandDelegate sendPluginResult:pluginResult callbackId:command.callbackId];
   }];
 }
 
@@ -23,15 +46,15 @@ NSNumber *isInit = @FALSE;
 {
   if([isInit boolValue]) {
     [self.commandDelegate runInBackground:^{
-        NSString* cmd = [command.arguments objectAtIndex:0];
-        CDVPluginResult* pluginResult = nil;
-        if (cmd != nil) {
-          stockfishios::cmd(std::string([cmd UTF8String]));
-          pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
-        } else {
-          pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"Missing cmd arg"];
-        }
-        [self.commandDelegate sendPluginResult:pluginResult callbackId:command.callbackId];
+      NSString* cmd = [command.arguments objectAtIndex:0];
+      CDVPluginResult* pluginResult = nil;
+      if (cmd != nil) {
+        stockfishios::cmd(std::string([cmd UTF8String]));
+        pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
+      } else {
+        pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"Missing cmd arg"];
+      }
+      [self.commandDelegate sendPluginResult:pluginResult callbackId:command.callbackId];
     }];
   } else {
     NSString *error = @"Please exec init before doing anything";
@@ -51,11 +74,11 @@ NSNumber *isInit = @FALSE;
 {
   if([isInit boolValue]) {
     [self.commandDelegate runInBackground:^{
-        CDVPluginResult* pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
-        stockfishios::cmd("stop");
-        stockfishios::exit();
-        isInit = @FALSE;
-        [self.commandDelegate sendPluginResult:pluginResult callbackId:command.callbackId];
+      CDVPluginResult* pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
+      stockfishios::cmd("stop");
+      stockfishios::exit();
+      isInit = @FALSE;
+      [self.commandDelegate sendPluginResult:pluginResult callbackId:command.callbackId];
     }];
   } else {
     NSString *error = @"Stockfish isn't currently running!";
@@ -80,9 +103,16 @@ NSNumber *isInit = @FALSE;
   }
 }
 
+- (void)doStopOnPause
+{
+  if([isInit boolValue]) {
+    stockfishios::cmd("stop");
+  }
+}
+
 void StockfishSendOutput (void *stockfish, const char *output)
 {
-    [(__bridge id) stockfish sendOutput:[NSString stringWithUTF8String:output]];
+  [(__bridge id) stockfish sendOutput:[NSString stringWithUTF8String:output]];
 }
 
 @end

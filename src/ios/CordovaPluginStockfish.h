@@ -3,6 +3,8 @@
 
 @interface CordovaPluginStockfish : CDVPlugin
 
+- (void)pluginInitialize;
+
 - (void)init:(CDVInvokedUrlCommand*)command;
 
 - (void)cmd:(CDVInvokedUrlCommand*)command;
