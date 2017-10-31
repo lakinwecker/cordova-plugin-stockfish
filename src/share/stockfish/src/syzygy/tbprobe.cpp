@@ -293,16 +293,16 @@ struct Atomic {
     std::atomic_bool ready;
 };
 
-// We define types for the different parts of the WLDEntry and DTZEntry with
+// We define types for the different parts of the WDLEntry and DTZEntry with
 // corresponding specializations for pieces or pawns.
 
-struct WLDEntryPiece {
+struct WDLEntryPiece {
     PairsData* precomp;
 };
 
 struct WDLEntryPawn {
     uint8_t pawnCount[2];     // [Lead color / other color]
-    WLDEntryPiece file[2][4]; // [wtm / btm][FILE_A..FILE_D]
+    WDLEntryPiece file[2][4]; // [wtm / btm][FILE_A..FILE_D]
 };
 
 struct DTZEntryPiece {
@@ -334,7 +334,7 @@ struct WDLEntry : public TBEntry {
     WDLEntry(const std::string& code, Variant v);
    ~WDLEntry();
     union {
-        WLDEntryPiece pieceTable[2]; // [wtm / btm]
+        WDLEntryPiece pieceTable[2]; // [wtm / btm]
         WDLEntryPawn  pawnTable;
     };
 };
@@ -625,6 +625,10 @@ public:
 #ifndef _WIN32
         struct stat statbuf;
         int fd = ::open(fname.c_str(), O_RDONLY);
+
+        if (fd == -1)
+            return *baseAddress = nullptr, nullptr;
+
         fstat(fd, &statbuf);
         *mapping = statbuf.st_size;
         *baseAddress = mmap(nullptr, statbuf.st_size, PROT_READ, MAP_SHARED, fd, 0);
@@ -637,6 +641,10 @@ public:
 #else
         HANDLE fd = CreateFile(fname.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr,
                                OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+
+        if (fd == INVALID_HANDLE_VALUE)
+            return *baseAddress = nullptr, nullptr;
+
         DWORD size_high;
         DWORD size_low = GetFileSize(fd, &size_high);
         HANDLE mmap = CreateFileMapping(fd, nullptr, PAGE_READONLY, size_high, size_low, nullptr);
@@ -664,8 +672,7 @@ public:
             || *data++ != *TB_MAGIC) {
             std::cerr << "Corrupted table in file " << fname << std::endl;
             unmap(*baseAddress, *mapping);
-            *baseAddress = nullptr;
-            return nullptr;
+            return *baseAddress = nullptr, nullptr;
         }
 
         return data;
@@ -776,32 +783,29 @@ void HashTable::insert(const std::vector<PieceType>& w, const std::vector<PieceT
 
     for (PieceType pt : w)
         code += PieceToChar[pt];
-
     code += "v";
-
     for (PieceType pt: b)
         code += PieceToChar[pt];
 
     TBFile file(code + WdlSuffixes[variant]);
 
-    if (file.is_open())
+    if (file.is_open()) // Only WDL file is checked
         file.close();
-    else {
-        if (code.find("P") == std::string::npos && PawnlessWdlSuffixes[variant]) {
-            TBFile pawnlessFile(code + PawnlessWdlSuffixes[variant]);
-            if (!pawnlessFile.is_open())
-                return;
-
-            pawnlessFile.close();
-        }
-        else
+    else if (variant != CHESS_VARIANT && code.find("P") == std::string::npos &&
+             PawnlessWdlSuffixes[variant])
+    {
+        TBFile pawnlessFile(code + PawnlessWdlSuffixes[variant]);
+        if (!pawnlessFile.is_open()) // Only WDL file is checked
             return;
+        pawnlessFile.close();
     }
+    else
+        return;
 
     MaxCardinality = std::max((int)(w.size() + b.size()), MaxCardinality);
 
-    wdlTable.push_back(WDLEntry(code, variant));
-    dtzTable.push_back(DTZEntry(wdlTable.back()));
+    wdlTable.emplace_back(code, variant);
+    dtzTable.emplace_back(wdlTable.back());
 
     insert(wdlTable.back().key , &wdlTable.back(), &dtzTable.back());
     insert(wdlTable.back().key2, &wdlTable.back(), &dtzTable.back());
@@ -842,14 +846,14 @@ int decompress_pairs(PairsData* d, uint64_t idx) {
     //
     //       I(k) = k * d->span + d->span / 2      (1)
 
-    // First step is to get the 'k' of the I(k) nearest to our idx, using defintion (1)
+    // First step is to get the 'k' of the I(k) nearest to our idx, using definition (1)
     uint32_t k = idx / d->span;
 
     // Then we read the corresponding SparseIndex[] entry
     uint32_t block = number<uint32_t, LittleEndian>(&d->sparseIndex[k].block);
     int offset     = number<uint16_t, LittleEndian>(&d->sparseIndex[k].offset);
 
-    // Now compute the difference idx - I(k). From defintion of k we know that
+    // Now compute the difference idx - I(k). From definition of k we know that
     //
     //       idx = k * d->span + idx % d->span    (2)
     //
@@ -984,7 +988,7 @@ int map_score(DTZEntry* entry, File f, int value, WDLScore wdl) {
 //      idx = Binomial[1][s1] + Binomial[2][s2] + ... + Binomial[k][sk]
 //
 template<typename Entry, typename T = typename Ret<Entry>::type>
-T do_probe_table(const Position& pos,  Entry* entry, WDLScore wdl, ProbeState* result) {
+T do_probe_table(const Position& pos, Entry* entry, WDLScore wdl, ProbeState* result) {
 
     const bool IsWDL = std::is_same<Entry, WDLEntry>::value;
 
@@ -1024,8 +1028,9 @@ T do_probe_table(const Position& pos,  Entry* entry, WDLScore wdl, ProbeState* r
         assert(type_of(pc) == PAWN);
 
         leadPawns = b = pos.pieces(color_of(pc), PAWN);
-        while (b)
+        do
             squares[size++] = pop_lsb(&b) ^ flipSquares;
+        while (b);
 
         leadPawnsCnt = size;
 
@@ -1048,11 +1053,13 @@ T do_probe_table(const Position& pos,  Entry* entry, WDLScore wdl, ProbeState* r
     // Now we are ready to get all the position pieces (but the lead pawns) and
     // directly map them to the correct color and square.
     b = pos.pieces() ^ leadPawns;
-    while (b) {
+    do {
         Square s = pop_lsb(&b);
         squares[size] = s ^ flipSquares;
         pieces[size++] = Piece(pos.piece_on(s) ^ flipColor);
-    }
+    } while (b);
+
+    assert(size >= 2);
 
     // Then we reorder the pieces to have the same sequence as the one stored
     // in precomp->pieces[i]: the sequence that ensures the best compression.
@@ -1376,8 +1383,8 @@ uint8_t* set_sizes(PairsData* d, uint8_t* data) {
     d->flags = *data++;
 
     if (d->flags & TBFlag::SingleValue) {
-        d->blocksNum = d->span =
-        d->blockLengthSize = d->sparseIndexSize = 0; // Broken MSVC zero-init
+        d->blocksNum = d->blockLengthSize = 0;
+        d->span = d->sparseIndexSize = 0; // Broken MSVC zero-init
         d->minSymLen = *data++; // Here we store the single value
         return data;
     }
@@ -1511,7 +1518,7 @@ void do_init(Entry& e, T& p, uint8_t* data) {
     for (File f = FILE_A; f <= MaxFile; ++f)
         for (int i = 0; i < Sides; i++) {
             (d = item(p, i, f).precomp)->sparseIndex = (SparseEntry*)data;
-            data += d->sparseIndexSize * sizeof(SparseEntry) ;
+            data += d->sparseIndexSize * sizeof(SparseEntry);
         }
 
     for (File f = FILE_A; f <= MaxFile; ++f)
@@ -1713,7 +1720,7 @@ void* init(Entry& e, const Position& pos) {
     fname = e.key == pos.material_key() ? w + 'v' + b : b + 'v' + w;
 
     const char** Suffixes = IsWDL ? WdlSuffixes : DtzSuffixes;
-    const char** PawnlessSuffixes =  IsWDL ? PawnlessWdlSuffixes : PawnlessDtzSuffixes;
+    const char** PawnlessSuffixes = IsWDL ? PawnlessWdlSuffixes : PawnlessDtzSuffixes;
 
     uint8_t* data = nullptr;
     TBFile file(fname + Suffixes[e.variant]);
@@ -2000,7 +2007,7 @@ void Tablebases::init(const std::string& paths, Variant variant) {
             if (MapA1D1D4[s1] == idx && (idx || s1 == SQ_B1)) // SQ_B1 is mapped to 0
             {
                 for (Square s2 = SQ_A1; s2 <= SQ_H8; ++s2)
-                    if ((StepAttacksBB[KING][s1] | s1) & s2)
+                    if ((PseudoAttacks[KING][s1] | s1) & s2)
                         continue; // Illegal position
 
                     else if (!off_A1H8(s1) && off_A1H8(s2) > 0)
@@ -2305,6 +2312,7 @@ bool Tablebases::root_probe(Position& pos, Search::RootMoves& rootMoves, Value& 
 #ifdef CRAZYHOUSE
     if (pos.is_house()) return false;
 #endif
+    assert(rootMoves.size());
 
     ProbeState result;
     int dtz = probe_dtz(pos, &result);
@@ -2351,7 +2359,7 @@ bool Tablebases::root_probe(Position& pos, Search::RootMoves& rootMoves, Value& 
 
     // Obtain 50-move counter for the root position.
     // In Stockfish there seems to be no clean way, so we do it like this:
-    int cnt50 = st.previous->rule50;
+    int cnt50 = st.previous ? st.previous->rule50 : 0;
 
     // Use 50-move counter to determine whether the root position is
     // won, lost or drawn.

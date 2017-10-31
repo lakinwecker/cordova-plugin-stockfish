@@ -71,12 +71,12 @@ namespace {
     {
       //            OUR PIECES
       // pair pawn knight bishop rook queen
-      {1667                               }, // Bishop pair
-      {  40,    2                         }, // Pawn
-      {  32,  255,  -3                    }, // Knight      OUR PIECES
-      {   0,  104,   4,    0              }, // Bishop
-      { -26,   -2,  47,   105,  -149      }, // Rook
-      {-185,   24, 122,   137,  -134,   0 }  // Queen
+      { 983                               }, // Bishop pair
+      { 129,  -16                         }, // Pawn
+      {   6,  151,   0                    }, // Knight      OUR PIECES
+      { -66,   66, -59,     6             }, // Bishop
+      {-107,    6,  11,   107,  -137      }, // Rook
+      {-198, -112,  83,   166,  -160, -18 }  // Queen
     },
 #endif
 #ifdef HORDE
@@ -157,12 +157,12 @@ namespace {
   const int QuadraticOursInHand[PIECE_TYPE_NB][PIECE_TYPE_NB] = {
       //            OUR PIECES
       //empty pawn knight bishop rook queen
-      { -88                               }, // Empty hand
-      {   0,  -44                         }, // Pawn
-      {   0,   33,  21                    }, // Knight      OUR PIECES
-      {   0,  -52, -16,    -6             }, // Bishop
-      {   0,   14,  44,   -54,    19      }, // Rook
-      {   0,   -5,   5,   -19,     2, -29 }  // Queen
+      {-148                               }, // Empty hand
+      {   1,  -33                         }, // Pawn
+      {  64,   34,   5                    }, // Knight      OUR PIECES
+      { -17, -128, -35,     6             }, // Bishop
+      {  14,  -18,  55,   -60,    76      }, // Rook
+      { -22,   17,  39,   -20,    26,  -8 }  // Queen
   };
 #endif
 
@@ -206,12 +206,12 @@ namespace {
     {
       //           THEIR PIECES
       // pair pawn knight bishop rook queen
-      {   0                               }, // Bishop pair
-      {  36,    0                         }, // Pawn
-      {   9,   63,   0                    }, // Knight      OUR PIECES
-      {  59,   65,  42,     0             }, // Bishop
-      {  46,   39,  24,   -24,    0       }, // Rook
-      { 101,  100, -37,   141,  268,    0 }  // Queen
+      { -54                               }, // Bishop pair
+      {  44, -109                         }, // Pawn
+      {  32,    1,   2                    }, // Knight      OUR PIECES
+      {  97,   49,  12,   -15             }, // Bishop
+      {  23,   46,   0,    -2,   23       }, // Rook
+      {  75,   43,  20,    65,  221,   83 }  // Queen
     },
 #endif
 #ifdef HORDE
@@ -292,18 +292,24 @@ namespace {
   const int QuadraticTheirsInHand[PIECE_TYPE_NB][PIECE_TYPE_NB] = {
       //           THEIR PIECES
       //empty pawn knight bishop rook queen
-      {   0                               }, // Empty hand
-      {  -6,    0                         }, // Pawn
-      {   7,   13,   0                    }, // Knight      OUR PIECES
-      { -19,   34, -17,     0             }, // Bishop
-      { -37,   -8,  -7,     7,     0      }, // Rook
-      {   1,   16, -25,    32,    -3,   0 }  // Queen
+      { -40                               }, // Empty hand
+      {  41,   11                         }, // Pawn
+      { -62,   -9,  26                    }, // Knight      OUR PIECES
+      {  34,   33,  42,    88             }, // Bishop
+      { -24,    0,  58,    90,   -38      }, // Rook
+      {  78,    3,  46,    37,   -26,  -1 }  // Queen
   };
 #endif
 
-  // PawnsSet[count] contains a bonus/malus indexed by number of pawns
-  const int PawnsSet[FILE_NB + 1] = {
-     24, -32, 107, -51, 117, -9, -126, -21, 31
+  // PawnSet[pawn count] contains a bonus/malus indexed by number of pawns
+  const int PawnSet[] = {
+    24, -32, 107, -51, 117, -9, -126, -21, 31
+  };
+
+  // QueenMinorsImbalance[opp_minor_count] is applied when only one side has a queen.
+  // It contains a bonus/malus for the side with the queen.
+  const int QueenMinorsImbalance[13] = {
+    31, -8, -15, -25, -5
   };
 
   // Endgame evaluation and scaling functions are accessed directly and not through
@@ -357,7 +363,7 @@ namespace {
 
     const Color Them = (Us == WHITE ? BLACK : WHITE);
 
-    int bonus = PawnsSet[std::min(pieceCount[Us][PAWN], (int)FILE_NB)];
+    int bonus = PawnSet[std::min(pieceCount[Us][PAWN], (int)FILE_NB)];
 
     // Second-degree polynomial material imbalance by Tord Romstad
     PieceType pt_max =
@@ -383,20 +389,25 @@ namespace {
         bonus += pieceCount[Us][pt1] * v;
     }
 #ifdef CRAZYHOUSE
-    for (int pt1 = NO_PIECE_TYPE; pt1 <= pt_max; ++pt1)
-    {
-        if (!pieceCountInHand[Us][pt1])
-            continue;
+    if (pos.is_house())
+        for (int pt1 = NO_PIECE_TYPE; pt1 <= pt_max; ++pt1)
+        {
+            if (!pieceCountInHand[Us][pt1])
+                continue;
 
-        int v = 0;
+            int v = 0;
 
-        for (int pt2 = NO_PIECE_TYPE; pt2 <= pt1; ++pt2)
-            v +=  QuadraticOursInHand[pt1][pt2] * pieceCountInHand[Us][pt2]
-                + QuadraticTheirsInHand[pt1][pt2] * pieceCountInHand[Them][pt2];
+            for (int pt2 = NO_PIECE_TYPE; pt2 <= pt1; ++pt2)
+                v +=  QuadraticOursInHand[pt1][pt2] * pieceCountInHand[Us][pt2]
+                    + QuadraticTheirsInHand[pt1][pt2] * pieceCountInHand[Them][pt2];
 
-        bonus += pieceCountInHand[Us][pt1] * v;
-    }
+            bonus += pieceCountInHand[Us][pt1] * v;
+        }
 #endif
+
+    // Special handling of Queen vs. Minors
+    if  (pieceCount[Us][QUEEN] == 1 && pieceCount[Them][QUEEN] == 0)
+         bonus += QueenMinorsImbalance[pieceCount[Them][KNIGHT] + pieceCount[Them][BISHOP]];
 
     return bonus;
   }
@@ -421,7 +432,21 @@ Entry* probe(const Position& pos) {
   std::memset(e, 0, sizeof(Entry));
   e->key = key;
   e->factor[WHITE] = e->factor[BLACK] = (uint8_t)SCALE_FACTOR_NORMAL;
-  e->gamePhase = pos.game_phase();
+
+  Value npm_w = pos.non_pawn_material(WHITE);
+  Value npm_b = pos.non_pawn_material(BLACK);
+  Value npm = std::max(EndgameLimit, std::min(npm_w + npm_b, MidgameLimit));
+#ifdef ANTI
+  if (pos.is_anti())
+      npm = 2 * std::min(npm_w, npm_b);
+#endif
+
+  // Map total non-pawn material into [PHASE_ENDGAME, PHASE_MIDGAME]
+  e->gamePhase = Phase(((npm - EndgameLimit) * PHASE_MIDGAME) / (MidgameLimit - EndgameLimit));
+#ifdef HORDE
+  if (pos.is_horde())
+      e->gamePhase = Phase(pos.count<PAWN>(pos.is_horde_color(WHITE) ? WHITE : BLACK) * PHASE_MIDGAME / 36);
+#endif
 
   // Let's look if we have a specialized evaluation function for this particular
   // material configuration. Firstly we look for a fixed configuration one, then
@@ -456,7 +481,7 @@ Entry* probe(const Position& pos) {
 
   if ((sf = pos.this_thread()->endgames.probe<ScaleFactor>(key)) != nullptr)
   {
-      e->scalingFunction[sf->strong_side()] = sf; // Only strong color assigned
+      e->scalingFunction[sf->strongSide] = sf; // Only strong color assigned
       return e;
   }
 
@@ -473,9 +498,6 @@ Entry* probe(const Position& pos) {
     else if (is_KQKRPs(pos, c))
         e->scalingFunction[c] = &ScaleKQKRPs[c];
   }
-
-  Value npm_w = pos.non_pawn_material(WHITE);
-  Value npm_b = pos.non_pawn_material(BLACK);
 
   if (npm_w + npm_b == VALUE_ZERO && pos.pieces(PAWN)) // Only pawns on the board
   {
@@ -517,15 +539,6 @@ Entry* probe(const Position& pos) {
   if (pos.count<PAWN>(BLACK) == 1 && npm_b - npm_w <= BishopValueMg)
       e->factor[BLACK] = (uint8_t) SCALE_FACTOR_ONEPAWN;
   }
-#ifdef ATOMIC
-  else if (pos.is_atomic())
-  {
-      Value npm_w = pos.non_pawn_material(WHITE);
-      Value npm_b = pos.non_pawn_material(BLACK);
-      if (!pos.pieces(PAWN) && npm_w + npm_b <= RookValueMg)
-          e->factor[WHITE] = (uint8_t) SCALE_FACTOR_DRAW;
-  }
-#endif
 
   // Evaluate the material imbalance. We use PIECE_TYPE_NONE as a place holder
   // for the bishop pair "extended piece", which allows us to be more flexible
@@ -536,13 +549,18 @@ Entry* probe(const Position& pos) {
   { pos.count<BISHOP>(BLACK) > 1, pos.count<PAWN>(BLACK), pos.count<KNIGHT>(BLACK),
     pos.count<BISHOP>(BLACK)    , pos.count<ROOK>(BLACK), pos.count<QUEEN >(BLACK), pos.count<KING>(BLACK) } };
 #ifdef CRAZYHOUSE
-  const int PieceCountInHand[COLOR_NB][PIECE_TYPE_NB] = {
-  { pos.count_in_hand<ALL_PIECES>(WHITE) == 0, pos.count_in_hand<PAWN>(WHITE), pos.count_in_hand<KNIGHT>(WHITE),
-    pos.count_in_hand<BISHOP>(WHITE)         , pos.count_in_hand<ROOK>(WHITE), pos.count_in_hand<QUEEN >(WHITE), pos.count_in_hand<KING>(WHITE) },
-  { pos.count_in_hand<ALL_PIECES>(BLACK) == 0, pos.count_in_hand<PAWN>(BLACK), pos.count_in_hand<KNIGHT>(BLACK),
-    pos.count_in_hand<BISHOP>(BLACK)         , pos.count_in_hand<ROOK>(BLACK), pos.count_in_hand<QUEEN >(BLACK), pos.count_in_hand<KING>(BLACK) } };
+  if (pos.is_house())
+  {
+      const int PieceCountInHand[COLOR_NB][PIECE_TYPE_NB] = {
+      { pos.count_in_hand<ALL_PIECES>(WHITE) == 0, pos.count_in_hand<PAWN>(WHITE), pos.count_in_hand<KNIGHT>(WHITE),
+        pos.count_in_hand<BISHOP>(WHITE)         , pos.count_in_hand<ROOK>(WHITE), pos.count_in_hand<QUEEN >(WHITE), pos.count_in_hand<KING>(WHITE) },
+      { pos.count_in_hand<ALL_PIECES>(BLACK) == 0, pos.count_in_hand<PAWN>(BLACK), pos.count_in_hand<KNIGHT>(BLACK),
+        pos.count_in_hand<BISHOP>(BLACK)         , pos.count_in_hand<ROOK>(BLACK), pos.count_in_hand<QUEEN >(BLACK), pos.count_in_hand<KING>(BLACK) } };
 
-  e->value = int16_t((imbalance<WHITE>(pos, PieceCount, PieceCountInHand) - imbalance<BLACK>(pos, PieceCount, PieceCountInHand)) / 16);
+      e->value = int16_t((imbalance<WHITE>(pos, PieceCount, PieceCountInHand) - imbalance<BLACK>(pos, PieceCount, PieceCountInHand)) / 16);
+  }
+  else
+      e->value = int16_t((imbalance<WHITE>(pos, PieceCount, NULL) - imbalance<BLACK>(pos, PieceCount, NULL)) / 16);
 #else
   e->value = int16_t((imbalance<WHITE>(pos, PieceCount) - imbalance<BLACK>(pos, PieceCount)) / 16);
 #endif
