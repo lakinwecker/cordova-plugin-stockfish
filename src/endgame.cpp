@@ -115,17 +115,12 @@ Endgames::Endgames() {
 #endif
 #ifdef ATOMIC
   add<ATOMIC_VARIANT, KPK>("KPvK");
+  add<ATOMIC_VARIANT, KNK>("KNvK");
+  add<ATOMIC_VARIANT, KBK>("KBvK");
+  add<ATOMIC_VARIANT, KRK>("KRvK");
   add<ATOMIC_VARIANT, KQK>("KQvK");
   add<ATOMIC_VARIANT, KNNK>("KNNvK");
 #endif
-}
-
-
-template<Variant V, EndgameType E, typename T>
-void Endgames::add(const string& code) {
-  StateInfo st;
-  map<T>()[Position().set(code, WHITE, V, &st).material_key()] = std::unique_ptr<EndgameBase<T>>(new Endgame<V, E>(WHITE));
-  map<T>()[Position().set(code, BLACK, V, &st).material_key()] = std::unique_ptr<EndgameBase<T>>(new Endgame<V, E>(BLACK));
 }
 
 
@@ -155,8 +150,8 @@ Value Endgame<CHESS_VARIANT, KXK>::operator()(const Position& pos) const {
   if (   pos.count<QUEEN>(strongSide)
       || pos.count<ROOK>(strongSide)
       ||(pos.count<BISHOP>(strongSide) && pos.count<KNIGHT>(strongSide))
-      ||(pos.count<BISHOP>(strongSide) > 1 && opposite_colors(pos.squares<BISHOP>(strongSide)[0],
-                                                              pos.squares<BISHOP>(strongSide)[1])))
+      || (   (pos.pieces(strongSide, BISHOP) & ~DarkSquares)
+          && (pos.pieces(strongSide, BISHOP) &  DarkSquares)))
       result = std::min(result + VALUE_KNOWN_WIN, VALUE_MATE_IN_MAX_PLY - 1);
 
   return strongSide == pos.side_to_move() ? result : -result;
@@ -631,7 +626,7 @@ ScaleFactor Endgame<CHESS_VARIANT, KPsK>::operator()(const Position& pos) const 
 
   // If all pawns are ahead of the king, on a single rook file and
   // the king is within one file of the pawns, it's a draw.
-  if (   !(pawns & ~in_front_bb(weakSide, rank_of(ksq)))
+  if (   !(pawns & ~forward_ranks_bb(weakSide, ksq))
       && !((pawns & ~FileABB) && (pawns & ~FileHBB))
       &&  distance<File>(ksq, lsb(pawns)) <= 1)
       return SCALE_FACTOR_DRAW;
@@ -678,8 +673,8 @@ ScaleFactor Endgame<CHESS_VARIANT, KBPKB>::operator()(const Position& pos) const
 
       if (relative_rank(strongSide, pawnSq) <= RANK_5)
           return SCALE_FACTOR_DRAW;
-      
-      Bitboard path = forward_bb(strongSide, pawnSq);
+
+      Bitboard path = forward_file_bb(strongSide, pawnSq);
 
       if (path & pos.pieces(weakSide, KING))
           return SCALE_FACTOR_DRAW;
@@ -818,7 +813,7 @@ ScaleFactor Endgame<CHESS_VARIANT, KNPKB>::operator()(const Position& pos) const
 
   // King needs to get close to promoting pawn to prevent knight from blocking.
   // Rules for this are very tricky, so just approximate.
-  if (forward_bb(strongSide, pawnSq) & pos.attacks_from<BISHOP>(bishopSq))
+  if (forward_file_bb(strongSide, pawnSq) & pos.attacks_from<BISHOP>(bishopSq))
       return ScaleFactor(distance(weakKingSq, pawnSq));
 
   return SCALE_FACTOR_NONE;
@@ -966,6 +961,12 @@ Value Endgame<ATOMIC_VARIANT, KPK>::operator()(const Position& pos) const {
 
   return strongSide == pos.side_to_move() ? result : -result;
 }
+
+template<> Value Endgame<ATOMIC_VARIANT, KNK>::operator()(const Position&) const { return VALUE_DRAW; }
+
+template<> Value Endgame<ATOMIC_VARIANT, KBK>::operator()(const Position&) const { return VALUE_DRAW; }
+
+template<> Value Endgame<ATOMIC_VARIANT, KRK>::operator()(const Position&) const { return VALUE_DRAW; }
 
 template<>
 Value Endgame<ATOMIC_VARIANT, KQK>::operator()(const Position& pos) const {
